@@ -1,4 +1,4 @@
-﻿﻿Function Find-SubDomains {
+Function Find-SubDomains {
     <#
     .SYNOPSIS
         Tool for enumerating sub-domains.
