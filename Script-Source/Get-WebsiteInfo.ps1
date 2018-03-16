@@ -90,9 +90,14 @@
 
 
     Function Process-Urls {
+        <#
+        .DESCRIPTION
+            Checks an array of URLs and transforms them into the following
+            format: http(s)://addr:port
+        #>
         Param(
             [Parameter(Mandatory = $True)]
-                [array]$URLs
+            [array]$URLs
         )
 
         $HttpPortList = @('80', '280', '81', '591', '593', '2080', '2480', '3080', 
@@ -139,7 +144,8 @@
         return $ProcessedUrls
     }
 
-    # Accept all cookies to avoid popups
+    # accept all cookies to avoid popups
+    # https://stackoverflow.com/questions/31720519/windows-10-powershell-invoke-webrequest-windows-security-warning
     $msg = reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\Zones\3" /t REG_DWORD /v 1A10 /f /d 0
 
     $URLs = Process-Urls -URLs $URLs
@@ -225,6 +231,7 @@ add-type @"
         }   
     }
 
+    # Indicates a 2xx or 3xx response
     if ($Response.GetType().name -eq "BasicHtmlWebResponseObject") {
 
         # examine response to compare current url and requested url
@@ -250,6 +257,7 @@ add-type @"
         }
     }
 
+    # indicates a 4xx or 5xx response
     elseif ($Response.GetType().name -eq "HttpWebResponse") {
         # examine response to compare current url and requested url
         if ($Response.ResponseUri.OriginalString.trim('/') -ne $URL.trim('/')) {
@@ -347,5 +355,6 @@ add-type @"
     Write-Host "[*] All URLs tested in $TotalSeconds seconds"
     Write-Host ""
 
+    # remove the key set earlier
     reg delete "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\Zones\3" /v 1A10 /f
 }
