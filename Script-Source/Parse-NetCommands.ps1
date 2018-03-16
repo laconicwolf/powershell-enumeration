@@ -9,7 +9,10 @@
         single list.
 
     .EXAMPLE        
-        PS C:\> net user | Parse-Netuser
+        PS C:\> net user | Parse-NetUser
+        
+        Users                       
+        ------
         Administrator
         DefaultAccount
         Dwight
@@ -17,6 +20,7 @@
         Jake
         WDAGUtilityAccount
     #>
+
     foreach ($item in $input) {
         if ($item -eq ""){
             continue
@@ -41,7 +45,7 @@
         foreach($content in $contentArray) {
             $content = $content -replace '"',''
             if ($content.Length -ne 0) {
-                Write-Output $content
+                New-Object -TypeName PSObject -Property @{"Users" = $content.Trim()}
             }
         }
     }
@@ -57,7 +61,17 @@ Function Parse-NetGroupMembers {
     .DESCRIPTION
         Accepts the output of net group via the pipeline and parses into a 
         single list.
+
+    .EXAMPLE        
+        PS C:\> net user | Parse-NetGroupMembers
+        
+        Group Members
+        -------------
+        Administrator
+        Dwight       
+        Jake         
     #>
+
     foreach ($item in $input) {
         if ($item -eq ""){
             continue
@@ -91,7 +105,7 @@ Function Parse-NetGroupMembers {
         foreach($content in $contentArray) {
             $content = $content -replace '"',''
             if ($content.Length -ne 0) {
-                Write-Output $content
+                New-Object -TypeName PSObject -Property @{"Group Members" = $content.Trim()}
             }
         }
     }
@@ -107,7 +121,19 @@ Function Parse-NetGroup {
     .DESCRIPTION
         Accepts the output of net group via the pipeline and parses into a 
         single list.
+
+    .EXAMPLE        
+        PS C:\> net user | Parse-Netuser
+        
+        Groups                       
+        ------                       
+        __vmware__                   
+        Administrators               
+        Distributed COM Users        
+        Event Log Readers            
+        Guests           
     #>
+
     foreach ($item in $input) {
         if ($item -eq ""){
             continue
@@ -125,6 +151,6 @@ Function Parse-NetGroup {
             continue
         }
         $group = $item.Trim('*')
-        Write-Output $group
+        New-Object -TypeName PSObject -Property @{"Groups" = $group.Trim()}
     }
 }
