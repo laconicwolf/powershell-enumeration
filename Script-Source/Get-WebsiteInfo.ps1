@@ -1,4 +1,4 @@
-﻿Function Get-WebsiteInfo {
+Function Get-WebsiteInfo {
     <#
     .SYNOPSIS
         Tool for enumerating basic information from websites.
