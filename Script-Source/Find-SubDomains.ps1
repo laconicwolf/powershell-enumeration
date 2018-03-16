@@ -20,11 +20,11 @@
     .EXAMPLE        
         PS C:\> Find-SubDomains -Domain github.com
 
-        [+] Getting subdomains for github.com from crt.sh
-        [+] Getting subdomains for github.com from dnsdumpster.com
-        [+] Getting subdomains for github.com from virustotal.com
-        [+] Getting subdomains for github.com from threatcrowd.com
-        [+] Getting subdomains for github.com from searchdns.netcraft.com
+        [*] Getting subdomains for github.com from crt.sh
+        [*] Getting subdomains for github.com from dnsdumpster.com
+        [*] Getting subdomains for github.com from virustotal.com
+        [*] Getting subdomains for github.com from threatcrowd.com
+        [*] Getting subdomains for github.com from searchdns.netcraft.com
 
         SubDomains
         ----------
@@ -115,7 +115,7 @@ add-type @"
 
         $URL = "https://crt.sh/?q=%25.$Domain"
 
-        Write-Host "[+] Getting subdomains for $Domain from crt.sh"
+        Write-Host "[*] Getting subdomains for $Domain from crt.sh"
 
         if ($Proxy) {
             Try {
@@ -166,7 +166,7 @@ add-type @"
 
         $URL = "https://dnsdumpster.com/"
 
-        Write-Host "[+] Getting subdomains for $Domain from dnsdumpster.com"
+        Write-Host "[*] Getting subdomains for $Domain from dnsdumpster.com"
 
         if ($Proxy) {
             Try {
@@ -252,7 +252,7 @@ add-type @"
 
         $URL = "https://www.virustotal.com/en/domain/$Domain/information/"
 
-        Write-Host "[+] Getting subdomains for $Domain from virustotal.com"
+        Write-Host "[*] Getting subdomains for $Domain from virustotal.com"
 
         if ($Proxy) {
             Try {
@@ -303,7 +303,7 @@ add-type @"
 
         $URL = "https://www.threatcrowd.org/searchApi/v2/domain/report/?domain=$Domain"
 
-        Write-Host "[+] Getting subdomains for $Domain from threatcrowd.com"
+        Write-Host "[*] Getting subdomains for $Domain from threatcrowd.com"
 
         if ($Proxy) {
             Try {
@@ -354,7 +354,7 @@ add-type @"
 
         $URL = "https://searchdns.netcraft.com/?restriction=site+ends+with&host=$Domain"
 
-        Write-Host "[+] Getting subdomains for $Domain from searchdns.netcraft.com"
+        Write-Host "[*] Getting subdomains for $Domain from searchdns.netcraft.com"
 
         if ($Proxy) {
             Try {
