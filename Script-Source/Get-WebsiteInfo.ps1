@@ -3,6 +3,7 @@
     .SYNOPSIS
         Tool for enumerating basic information from websites.
         Author: Jake Miller (@LaconicWolf)
+
     .DESCRIPTION
         Accepts a single URL or reads a text file of URLs (one per line) and uses 
         Invoke-WebRequests to attempt to visit the each URL. Returns information 
@@ -12,8 +13,10 @@
          
     .PARAMETER UrlFile
         Semi-optional. The file path to the text file containing URLs, one per line.
+
     .PARAMETER Url
         Semi-optional. The URL you would like to test.
+
     .PARAMETER Proxy
         Optional. Send requests through a specified proxy. 
         Example: -Proxy http://127.0.0.1:8080
@@ -23,6 +26,7 @@
         
     .PARAMETER Info
         Optional. Increase output verbosity. 
+
     .EXAMPLE
         PS C:\> Get-WebsiteInfo -UrlFile .\urls.txt -Threads 5
         
@@ -34,6 +38,7 @@
         LAN                      https://192.168.0.1/                                       
         LaconicWolf              http://www.laconicwolf.net AmazonS3 http://laconicwolf.net/
         Cisco - Global Home Page https://www.cisco.com/     Apache       
+
     .EXAMPLE  
         PS C:\> Get-WebsiteInfo -UrlFile .\urls.txt -Info | Export-Csv -Path results.csv -NoTypeInformation
         [*] Loaded 6 URLs for testing
@@ -71,13 +76,17 @@
     }
 
     if ($UrlFile) {
-        if (Test-Path -Path $UrlFile) { $URLs = Get-Content $UrlFile }
+        if (Test-Path -Path $UrlFile) { 
+            $URLs = Get-Content $UrlFile 
+        }
         else {
             Write-Host "`n[-] Please check the URLFile path and try again." -ForegroundColor Yellow
             return
         }
     }
-    else {$URLs = @($Url)}
+    else {
+        $URLs = @($Url)
+    }
 
 
     Function Process-Urls {
@@ -130,10 +139,13 @@
         return $ProcessedUrls
     }
 
+    # Accept all cookies to avoid popups
+    $msg = reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\Zones\3" /t REG_DWORD /v 1A10 /f /d 0
 
     $URLs = Process-Urls -URLs $URLs
 
-    Write-Host "`n[*] Loaded" $URLs.Length "URLs for testing`n"
+    Write-Host ""
+    Write-Host "[*] Loaded" $URLs.Count "URLs for testing"
 
     $StartTime = Get-Date
 
@@ -144,7 +156,8 @@
             $Proxy
         )
 
-# ignore HTTPS certificate warnings
+    # ignore HTTPS certificate warnings
+    # https://stackoverflow.com/questions/11696944/powershell-v3-invoke-webrequest-https-error
 add-type @"
     using System.Net;
     using System.Security.Cryptography.X509Certificates;
@@ -156,9 +169,14 @@ add-type @"
         }
     }
 "@
-[System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+    [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+
+    # To prevent 'Could not create SSL/TLS secure channel.' errors
+    # https://stackoverflow.com/questions/41618766/powershell-invoke-webrequest-fails-with-ssl-tls-secure-channel
+    [Net.ServicePointManager]::SecurityProtocol = "Tls12, Tls11, Tls, Ssl3"
+
     
-    Function _Get-RandomAgent {
+    Function Get-RandomAgent {
         <#
         .DESCRIPTION
             Helper function that returns a random user-agent.
@@ -187,44 +205,80 @@ add-type @"
     $SiteData = @()
 
     # sets a random user-agent
-    $UserAgent = _Get-RandomAgent
+    $UserAgent = Get-RandomAgent
 
     # send request to url
     if ($Proxy) {
-        Try {
-            $Response = Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -Method Get -Proxy $Proxy -TimeoutSec 2
+        $Response = Try {
+            Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -Method Get -Proxy $Proxy -TimeoutSec 2 -UseBasicParsing
         }
-        Catch {continue}
+        Catch {
+            $_.Exception.Response
+        }      
     }
     else {
-        Try {
-            $Response = Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -Method Get -TimeoutSec 2
+        $Response = Try {
+            Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -Method Get -TimeoutSec 2 -UseBasicParsing
         }
-        Catch {continue}
+        Catch {
+            $_.Exception.Response
+        }   
     }
 
-    # examine response to compare current url and requested url
-    if ($Response.BaseResponse.ResponseUri.OriginalString -ne $URL) {
-        $RedirectedUrl = $Response.BaseResponse.ResponseUri.OriginalString
-    }
-    else {
-        $RedirectedUrl = ""
+    if ($Response.GetType().name -eq "BasicHtmlWebResponseObject") {
+
+        # examine response to compare current url and requested url
+        if ($Response.BaseResponse.ResponseUri.OriginalString.trim('/') -ne $URL.trim('/')) {
+            $RedirectedUrl = $Response.BaseResponse.ResponseUri.OriginalString
+        }
+        else {
+            $RedirectedUrl = ""
+        }
+
+        # finds title if available
+        $Title = [regex]::match($Response.Content,'(?i)<title>(.*?)</title>').Groups[1].Value
+        if (-not $Title) {
+            $Title = ""
+        }
+
+        # examines response headers and extracts the server value if available
+        if ($Response.BaseResponse.Server) {
+            $Server = $Response.BaseResponse.Server
+        }
+        else {
+            $Server = ""
+        }
     }
 
-    # examines parsed html and extracts title if available
-    if ($Response.ParsedHtml.title) {
-        $Title = $Response.ParsedHtml.title
-    }
-    else {
-        $Title = ""
-    } 
+    elseif ($Response.GetType().name -eq "HttpWebResponse") {
+        # examine response to compare current url and requested url
+        if ($Response.ResponseUri.OriginalString.trim('/') -ne $URL.trim('/')) {
+            $RedirectedUrl = $Response.ResponseUri.OriginalString
+        }
+        else {
+            $RedirectedUrl = ""
+        }
 
-    # examines response headers and extracts the server value if avaible
-    if ($Response.Headers.ContainsKey('Server')) {
-        $Server = $Response.Headers.Server
-    }
-    else {
-        $Server = ""
+        # extracts the html 
+        $Result = $Response.GetResponseStream()
+        $Reader = New-Object System.IO.StreamReader($Result)
+        $Reader.BaseStream.Position = 0
+        $Reader.DiscardBufferedData()
+        $ResponseBody = $Reader.ReadToEnd();
+
+        # finds title if available
+        $Title = [regex]::match($ResponseBody,'(?i)<title>(.*?)</title>').Groups[1].Value
+        if (-not $Title) {
+            $Title = ""
+        }
+
+        # examines response headers and extracts the server value if available
+        if ($Response.Server) {
+            $Server = $Response.Server
+        }
+        else {
+            $Server = ""
+        }
     }
 
     # creates an object with properties from the html data
@@ -248,8 +302,12 @@ add-type @"
     ForEach ($URL in $URLs) {
 
         # maps the command line options to the scriptblock
-        if ($Proxy -and -not $Info) {$Job = [powershell]::Create().AddScript($ScriptBlock).AddParameter("Url", $URL).AddParameter("Proxy", $Proxy)}
-        else {$Job = [powershell]::Create().AddScript($ScriptBlock).AddParameter("Url", $URL)}
+        if ($Proxy -and -not $Info) {
+            $Job = [powershell]::Create().AddScript($ScriptBlock).AddParameter("Url", $URL).AddParameter("Proxy", $Proxy)
+        }
+        else {
+            $Job = [powershell]::Create().AddScript($ScriptBlock).AddParameter("Url", $URL)
+        }
         
         # starts a new job for each url
         $Job.RunspacePool = $RunspacePool
@@ -286,430 +344,8 @@ add-type @"
 
     $EndTime = Get-Date
     $TotalSeconds = "{0:N4}" -f ($EndTime-$StartTime).TotalSeconds
-    Write-Host "`n[*] All URLs tested in $TotalSeconds seconds`n"
-}
-
-
-﻿Function Find-SubDomains {
-    <#
-    .SYNOPSIS
-        Tool for enumerating sub-domains.
-        Author: Jake Miller (@LaconicWolf)
-        Credit: Sublist3r v1.0 By Ahmed Aboul-Ela - twitter.com/aboul3la
-
-    .DESCRIPTION
-        Accepts a domain name and uses Invoke-WebRequests to attempt to visit 
-        various sites (crt.sh, virustotal.com, dnsdumpster.com, etc) in order 
-        to enumerate sub-domains.
-
-    .PARAMETER Domain
-        Mandatory. The domain you would like to check for sub-domains.
-
-    .PARAMETER Proxy
-        Optional. Send requests through a specified proxy. 
-        Example: -Proxy http://127.0.0.1:8080
-
-    .EXAMPLE        
-        PS C:\> Find-SubDomains -Domain github.com
-
-        [+] Getting subdomains for github.com from crt.sh
-        [+] Getting subdomains for github.com from dnsdumpster.com
-        [+] Getting subdomains for github.com from virustotal.com
-        [+] Getting subdomains for github.com from threatcrowd.com
-        [+] Getting subdomains for github.com from searchdns.netcraft.com
-
-        SubDomains
-        ----------
-        *.branch.github.com
-        *.github.com
-        *.hq.github.com
-        *.id.github.com
-        *.registry.github.com
-        *.review-lab.github.com
-        *.rs.github.com
-        *.smtp.github.com
-        *.stg.github.com
-        3scale.github.com
-        4simple.github.com
-        5509.github.com
-        6pac.github.com
-        aanoaa.github.com
-        abc.github.com
-        abedra.github.com
-    #>
-
-    [CmdletBinding()]
-    Param(
-        [Parameter(Mandatory = $True, 
-                   ValueFromPipeline = $true)]
-        [string]$Domain,
-    
-        [Parameter(Mandatory = $false)]
-        [string]$Proxy
-    )
-
-# ignore HTTPS certificate warnings
-add-type @"
-    using System.Net;
-    using System.Security.Cryptography.X509Certificates;
-    public class TrustAllCertsPolicy : ICertificatePolicy {
-        public bool CheckValidationResult(
-            ServicePoint srvPoint, X509Certificate certificate,
-            WebRequest request, int certificateProblem) {
-            return true;
-        }
-    }
-"@
-[System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-
-
-    Function Get-RandomAgent {
-        <#
-        .DESCRIPTION
-            Returns a random user-agent.
-        #>
-
-        $num = Get-Random -Minimum 1 -Maximum 5
-        if($num -eq 1) {
-            $ua = [Microsoft.PowerShell.Commands.PSUserAgent]::Chrome
-        } 
-        elseif($num -eq 2) {
-            $ua = [Microsoft.PowerShell.Commands.PSUserAgent]::FireFox
-        }
-        elseif($num -eq 3) {
-            $ua = [Microsoft.PowerShell.Commands.PSUserAgent]::InternetExplorer
-        }
-        elseif($num -eq 4) {
-            $ua = [Microsoft.PowerShell.Commands.PSUserAgent]::Opera
-        }
-        elseif($num -eq 5) {
-            $ua = [Microsoft.PowerShell.Commands.PSUserAgent]::Safari
-        }
-        return $ua
-    }
-
-
-
-    Function Get-CrtSubDomains {
-        <#
-            .DESCRIPTION
-                Navigates to the crt.sh site and looks up subdomains, then returns
-                an array of subdomains
-        #>
-
-        Param(
-            [Parameter(Mandatory = $true)]
-            [string]$Domain,
-
-            [Parameter(Mandatory = $False)]
-            [switch]$Proxy
-        )
-
-        $URL = "https://crt.sh/?q=%25.$Domain"
-
-        Write-Host "[+] Getting subdomains for $Domain from crt.sh"
-
-        if ($Proxy) {
-            Try {
-                $Response = Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -Method Get -Proxy $Proxy -TimeoutSec 10
-            }
-            Catch {
-                Write-Host "[-] Unable to connect to $URL. Skipping." -ForegroundColor Yellow
-                return
-            }
-        }
-        else {
-            Try {
-                $Response = Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -Method Get -TimeoutSec 10
-            }
-            Catch {
-                Write-Host "[-] Unable to connect to $URL. Skipping." -ForegroundColor Yellow
-                return
-            }
-        }
-
-        $SubDomains = @()
-        $td = ($Response.AllElements | Where-Object {($_.TagName -eq "td")}).innerHtml
-    
-        foreach ($item in $td) { 
-            if ($item -like "*$Domain*" -and $item -notmatch '<TD>' -and $item -notmatch '%') {
-                $SubDomains += New-Object -TypeName PSObject -Property @{"SubDomains" = $item.Trim()}
-            }
-        }
-
-        return $SubDomains | Sort-Object -Property SubDomains -Unique
-    }
-
-
-    Function Get-DnsDumpsterSubDomains {
-        <#
-            .DESCRIPTION
-                Navigates to https://dnsdumpster.com/ and looks up subdomains, then returns
-                an array of subdomains
-        #>
-
-        Param(
-            [Parameter(Mandatory = $true)]
-            [string]$Domain,
-
-            [Parameter(Mandatory = $False)]
-            [switch]$Proxy
-        )
-
-        $URL = "https://dnsdumpster.com/"
-
-        Write-Host "[+] Getting subdomains for $Domain from dnsdumpster.com"
-
-        if ($Proxy) {
-            Try {
-                $Response = Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -SessionVariable session -Method Get -Proxy $Proxy -TimeoutSec 10
-            }
-            Catch {
-                Write-Host "[-] Unable to connect to $URL. Skipping." -ForegroundColor Yellow
-                return
-            }
-        }
-        else {
-            Try {
-                $Response = Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -SessionVariable session -Method Get -TimeoutSec 10
-            }
-            Catch {
-                Write-Host "[-] Unable to connect to $URL. Skipping." -ForegroundColor Yellow
-                return
-            }
-        }
-
-        $csrfmiddlewaretoken = $session.Cookies.GetCookies($url).value
-
-        $PostData = @{"csrfmiddlewaretoken"=$csrfmiddlewaretoken; "targetip"=$Domain}
-
-        if ($Proxy) {
-            Try {
-                $Response = Invoke-WebRequest -Uri $URL -WebSession $session -UserAgent $user_agent -Method Post -Body $PostData -Headers @{"Referer" = $URL} -Proxy $Proxy -TimeoutSec 10
-            }
-            Catch {
-                Write-Host "[-] Unable to connect to $URL. Skipping." -ForegroundColor Yellow
-                return
-            }
-        }
-        else {
-            Try {
-                $Response = Invoke-WebRequest -Uri $URL -WebSession $session -UserAgent $user_agent -Method Post -Body $PostData -Headers @{"Referer" = $URL} -TimeoutSec 10
-            }
-            Catch {
-                Write-Host "[-] Unable to connect to $URL. Skipping." -ForegroundColor Yellow
-                return
-            }
-        }
-    
-
-        $SubDomains = @()
-
-        Try {
-            $td = ($Response.ParsedHtml.getElementsByTagName('TD') | Where-Object {$_.getAttributeNode('class').Value -eq "col-md-4"}).outerText
-        }
-        Catch {
-            Write-Host "[-] Error parsing DNSDumpster response. You can try to check manually at $URL. Skipping." -ForegroundColor Yellow
-        }
-        foreach ($item in $td) { 
-            if ($item -like "*$Domain*") {
-                $item = $item -replace "`n|`r"
-                $items = $item.Split()
-                foreach ($i in $items) {
-                    if ($i -like "*$Domain*") {
-                        $SubDomains += New-Object -TypeName PSObject -Property @{"SubDomains" = $i.Trim()}
-                    }
-                }
-            }
-        }
-
-        return $SubDomains | Sort-Object -Property SubDomains -Unique
-    }
-
-
-    Function Get-VirusTotalSubDomains {
-        <#
-            .DESCRIPTION
-                Navigates to the https://www.virustotal.com/en/domain/$Domain/information/ and 
-                looks up observed subdomains, then returns an array of subdomains
-        #>
-
-        Param(
-            [Parameter(Mandatory = $true)]
-            [string]$Domain,
-
-            [Parameter(Mandatory = $False)]
-            [switch]$Proxy
-        )
-
-        $URL = "https://www.virustotal.com/en/domain/$Domain/information/"
-
-        Write-Host "[+] Getting subdomains for $Domain from virustotal.com"
-
-        if ($Proxy) {
-            Try {
-                $Response = Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -Method Get -Proxy $Proxy -TimeoutSec 10
-            }
-            Catch {
-                Write-Host "[-] Either unable to connect with VirusTotal, or they are requesting a CAPTCHA. Skipping." -ForegroundColor Yellow
-                return
-            }
-        }
-        else {
-            Try {
-                $Response = Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -Method Get -TimeoutSec 10
-            }
-            Catch {
-                Write-Host "[-] Either unable to connect with VirusTotal, or they are requesting a CAPTCHA. Skipping." -ForegroundColor Yellow
-                return
-            }
-        }
-
-        $SubDomains = @()
-        $subDiv = ($Response.ParsedHtml.getElementsByTagName('div') | Where-Object { $_.getAttributeNode('class').Value -eq 'enum ' }).innerText
-    
-        foreach ($item in $subDiv) { 
-            if ($item -like "*$Domain*") {
-                $SubDomains += New-Object -TypeName PSObject -Property @{"SubDomains" = $item.Trim()}
-            }
-        }
-
-        return $SubDomains | Sort-Object -Property SubDomains -Unique
-    }
-
-
-    Function Get-ThreatCrowdSubDomains {
-        <#
-            .DESCRIPTION
-                Navigates to https://www.threatcrowd.org/searchApi/v2/domain/report/?domain=$Domain and 
-                looks up observed subdomains, then returns an array of subdomains
-        #>
-
-        Param(
-            [Parameter(Mandatory = $true)]
-            [string]$Domain,
-
-            [Parameter(Mandatory = $False)]
-            [switch]$Proxy
-        )
-
-        $URL = "https://www.threatcrowd.org/searchApi/v2/domain/report/?domain=$Domain"
-
-        Write-Host "[+] Getting subdomains for $Domain from threatcrowd.com"
-
-        if ($Proxy) {
-            Try {
-                $Response = Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -Method Get -Proxy $Proxy -TimeoutSec 10
-            }
-            Catch {
-                Write-Host "[-] Unable to connect to $URL. Skipping." -ForegroundColor Yellow
-                return
-            }
-        }
-        else {
-            Try {
-                $Response = Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -Method Get -TimeoutSec 10
-            }
-            Catch {
-                Write-Host "[-] Unable to connect to $URL. Skipping." -ForegroundColor Yellow
-                return
-            }
-        }
-
-        $SubDomains = @()
-        $threatcrowdSubdomains = ($Response | ConvertFrom-Json).subdomains
-    
-        foreach ($item in $threatcrowdSubdomains) { 
-            if ($item -like "*$Domain*") {
-                $SubDomains += New-Object -TypeName PSObject -Property @{"SubDomains" = $item.Trim()}
-            }
-        }
-
-        return $SubDomains | Sort-Object -Property SubDomains -Unique
-    }
-
-
-    Function Get-NetCraftSubDomains {
-        <#
-            .DESCRIPTION
-                Navigates to https://searchdns.netcraft.com/?restriction=site+ends+with&host=$Domain and 
-                looks up observed subdomains, then returns an array of subdomains
-        #>
-
-        Param(
-            [Parameter(Mandatory = $true)]
-            [string]$Domain,
-
-            [Parameter(Mandatory = $False)]
-            [switch]$Proxy
-        )
-
-        $URL = "https://searchdns.netcraft.com/?restriction=site+ends+with&host=$Domain"
-
-        Write-Host "[+] Getting subdomains for $Domain from searchdns.netcraft.com"
-
-        if ($Proxy) {
-            Try {
-                $Response = Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -Method Get -Proxy $Proxy -TimeoutSec 10
-            }
-            Catch {
-                Write-Host "[-] Unable to connect to $URL. Skipping." -ForegroundColor Yellow
-                return
-            }
-        }
-        else {
-            Try {
-                $Response = Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -Method Get -TimeoutSec 10
-            }
-            Catch {
-                Write-Host "[-] Unable to connect to $URL. Skipping." -ForegroundColor Yellow
-                return
-            }
-        }
-
-        $SubDomains = @()
-        $links = $Response.Links.outerText
-    
-        foreach ($item in $links) { 
-            if ($item -like "*$Domain*") {
-                $SubDomains += New-Object -TypeName PSObject -Property @{"SubDomains" = $item.Trim()}                                                                     
-            }
-        }
-
-        return $SubDomains | Sort-Object -Property SubDomains -Unique
-    }
-
+    Write-Host "[*] All URLs tested in $TotalSeconds seconds"
     Write-Host ""
 
-    # If the input is coming from the pipeline
-    if ($input) {
-        foreach($DomainName in $input) {
-            $UserAgent = Get-RandomAgent
-    
-            $Data = @()
-
-            $Data += Get-CrtSubDomains -Domain $DomainName
-            $Data += Get-DnsDumpsterSubDomains -Domain $DomainName
-            $Data += Get-VirusTotalSubDomains -Domain $DomainName
-            $Data += Get-ThreatCrowdSubDomains -Domain $DomainName
-            $Data += Get-NetCraftSubDomains -Domain $DomainName
-
-            Write-Host ""
-
-            $Data | Sort-Object -Property SubDomains -Unique
-        }
-    }
-    else {
-        $Data = @()
-
-        $Data += Get-CrtSubDomains -Domain $Domain
-        $Data += Get-DnsDumpsterSubDomains -Domain $Domain
-        $Data += Get-VirusTotalSubDomains -Domain $Domain
-        $Data += Get-ThreatCrowdSubDomains -Domain $Domain
-        $Data += Get-NetCraftSubDomains -Domain $Domain
-
-        Write-Host ""
-
-        $Data | Sort-Object -Property SubDomains -Unique
-    }
+    reg delete "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\Zones\3" /v 1A10 /f
 }
