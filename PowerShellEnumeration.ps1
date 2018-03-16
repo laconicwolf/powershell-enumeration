@@ -586,6 +586,7 @@ Function Get-WebsiteInfo {
     .SYNOPSIS
         Tool for enumerating basic information from websites.
         Author: Jake Miller (@LaconicWolf)
+
     .DESCRIPTION
         Accepts a single URL or reads a text file of URLs (one per line) and uses 
         Invoke-WebRequests to attempt to visit the each URL. Returns information 
@@ -595,8 +596,10 @@ Function Get-WebsiteInfo {
          
     .PARAMETER UrlFile
         Semi-optional. The file path to the text file containing URLs, one per line.
+
     .PARAMETER Url
         Semi-optional. The URL you would like to test.
+
     .PARAMETER Proxy
         Optional. Send requests through a specified proxy. 
         Example: -Proxy http://127.0.0.1:8080
@@ -606,6 +609,7 @@ Function Get-WebsiteInfo {
         
     .PARAMETER Info
         Optional. Increase output verbosity. 
+
     .EXAMPLE
         PS C:\> Get-WebsiteInfo -UrlFile .\urls.txt -Threads 5
         
@@ -617,6 +621,7 @@ Function Get-WebsiteInfo {
         LAN                      https://192.168.0.1/                                       
         LaconicWolf              http://www.laconicwolf.net AmazonS3 http://laconicwolf.net/
         Cisco - Global Home Page https://www.cisco.com/     Apache       
+
     .EXAMPLE  
         PS C:\> Get-WebsiteInfo -UrlFile .\urls.txt -Info | Export-Csv -Path results.csv -NoTypeInformation
         [*] Loaded 6 URLs for testing
@@ -654,13 +659,17 @@ Function Get-WebsiteInfo {
     }
 
     if ($UrlFile) {
-        if (Test-Path -Path $UrlFile) { $URLs = Get-Content $UrlFile }
+        if (Test-Path -Path $UrlFile) { 
+            $URLs = Get-Content $UrlFile 
+        }
         else {
             Write-Host "`n[-] Please check the URLFile path and try again." -ForegroundColor Yellow
             return
         }
     }
-    else {$URLs = @($Url)}
+    else {
+        $URLs = @($Url)
+    }
 
 
     Function Process-Urls {
@@ -713,10 +722,13 @@ Function Get-WebsiteInfo {
         return $ProcessedUrls
     }
 
+    # Accept all cookies to avoid popups
+    $msg = reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\Zones\3" /t REG_DWORD /v 1A10 /f /d 0
 
     $URLs = Process-Urls -URLs $URLs
 
-    Write-Host "`n[*] Loaded" $URLs.Length "URLs for testing`n"
+    Write-Host ""
+    Write-Host "[*] Loaded" $URLs.Count "URLs for testing"
 
     $StartTime = Get-Date
 
@@ -727,7 +739,8 @@ Function Get-WebsiteInfo {
             $Proxy
         )
 
-# ignore HTTPS certificate warnings
+    # ignore HTTPS certificate warnings
+    # https://stackoverflow.com/questions/11696944/powershell-v3-invoke-webrequest-https-error
 add-type @"
     using System.Net;
     using System.Security.Cryptography.X509Certificates;
@@ -739,9 +752,14 @@ add-type @"
         }
     }
 "@
-[System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+    [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+
+    # To prevent 'Could not create SSL/TLS secure channel.' errors
+    # https://stackoverflow.com/questions/41618766/powershell-invoke-webrequest-fails-with-ssl-tls-secure-channel
+    [Net.ServicePointManager]::SecurityProtocol = "Tls12, Tls11, Tls, Ssl3"
+
     
-    Function _Get-RandomAgent {
+    Function Get-RandomAgent {
         <#
         .DESCRIPTION
             Helper function that returns a random user-agent.
@@ -770,44 +788,80 @@ add-type @"
     $SiteData = @()
 
     # sets a random user-agent
-    $UserAgent = _Get-RandomAgent
+    $UserAgent = Get-RandomAgent
 
     # send request to url
     if ($Proxy) {
-        Try {
-            $Response = Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -Method Get -Proxy $Proxy -TimeoutSec 2
+        $Response = Try {
+            Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -Method Get -Proxy $Proxy -TimeoutSec 2 -UseBasicParsing
         }
-        Catch {continue}
+        Catch {
+            $_.Exception.Response
+        }      
     }
     else {
-        Try {
-            $Response = Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -Method Get -TimeoutSec 2
+        $Response = Try {
+            Invoke-WebRequest -Uri $URL -UserAgent $UserAgent -Method Get -TimeoutSec 2 -UseBasicParsing
         }
-        Catch {continue}
+        Catch {
+            $_.Exception.Response
+        }   
     }
 
-    # examine response to compare current url and requested url
-    if ($Response.BaseResponse.ResponseUri.OriginalString -ne $URL) {
-        $RedirectedUrl = $Response.BaseResponse.ResponseUri.OriginalString
-    }
-    else {
-        $RedirectedUrl = ""
+    if ($Response.GetType().name -eq "BasicHtmlWebResponseObject") {
+
+        # examine response to compare current url and requested url
+        if ($Response.BaseResponse.ResponseUri.OriginalString.trim('/') -ne $URL.trim('/')) {
+            $RedirectedUrl = $Response.BaseResponse.ResponseUri.OriginalString
+        }
+        else {
+            $RedirectedUrl = ""
+        }
+
+        # finds title if available
+        $Title = [regex]::match($Response.Content,'(?i)<title>(.*?)</title>').Groups[1].Value
+        if (-not $Title) {
+            $Title = ""
+        }
+
+        # examines response headers and extracts the server value if available
+        if ($Response.BaseResponse.Server) {
+            $Server = $Response.BaseResponse.Server
+        }
+        else {
+            $Server = ""
+        }
     }
 
-    # examines parsed html and extracts title if available
-    if ($Response.ParsedHtml.title) {
-        $Title = $Response.ParsedHtml.title
-    }
-    else {
-        $Title = ""
-    } 
+    elseif ($Response.GetType().name -eq "HttpWebResponse") {
+        # examine response to compare current url and requested url
+        if ($Response.ResponseUri.OriginalString.trim('/') -ne $URL.trim('/')) {
+            $RedirectedUrl = $Response.ResponseUri.OriginalString
+        }
+        else {
+            $RedirectedUrl = ""
+        }
 
-    # examines response headers and extracts the server value if avaible
-    if ($Response.Headers.ContainsKey('Server')) {
-        $Server = $Response.Headers.Server
-    }
-    else {
-        $Server = ""
+        # extracts the html 
+        $Result = $Response.GetResponseStream()
+        $Reader = New-Object System.IO.StreamReader($Result)
+        $Reader.BaseStream.Position = 0
+        $Reader.DiscardBufferedData()
+        $ResponseBody = $Reader.ReadToEnd();
+
+        # finds title if available
+        $Title = [regex]::match($ResponseBody,'(?i)<title>(.*?)</title>').Groups[1].Value
+        if (-not $Title) {
+            $Title = ""
+        }
+
+        # examines response headers and extracts the server value if available
+        if ($Response.Server) {
+            $Server = $Response.Server
+        }
+        else {
+            $Server = ""
+        }
     }
 
     # creates an object with properties from the html data
@@ -831,8 +885,12 @@ add-type @"
     ForEach ($URL in $URLs) {
 
         # maps the command line options to the scriptblock
-        if ($Proxy -and -not $Info) {$Job = [powershell]::Create().AddScript($ScriptBlock).AddParameter("Url", $URL).AddParameter("Proxy", $Proxy)}
-        else {$Job = [powershell]::Create().AddScript($ScriptBlock).AddParameter("Url", $URL)}
+        if ($Proxy -and -not $Info) {
+            $Job = [powershell]::Create().AddScript($ScriptBlock).AddParameter("Url", $URL).AddParameter("Proxy", $Proxy)
+        }
+        else {
+            $Job = [powershell]::Create().AddScript($ScriptBlock).AddParameter("Url", $URL)
+        }
         
         # starts a new job for each url
         $Job.RunspacePool = $RunspacePool
@@ -869,5 +927,8 @@ add-type @"
 
     $EndTime = Get-Date
     $TotalSeconds = "{0:N4}" -f ($EndTime-$StartTime).TotalSeconds
-    Write-Host "`n[*] All URLs tested in $TotalSeconds seconds`n"
+    Write-Host "[*] All URLs tested in $TotalSeconds seconds"
+    Write-Host ""
+
+    reg delete "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\Zones\3" /v 1A10 /f
 }
