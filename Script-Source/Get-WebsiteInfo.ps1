@@ -140,6 +140,9 @@ Function Get-WebsiteInfo {
                 $ProcessedUrls += "https://$Url"
                 continue
             }
+            else {
+				$ProcessedUrls += $Url
+			}
         }
         return $ProcessedUrls
     }
