@@ -124,7 +124,7 @@ Function Get-WebsiteInfo {
                     $ProcessedUrls += "http://$Url"
                     continue
                 }
-                elseif ($Port -in $HttpsPortList) {
+                elseif ($Port -in $HttpsPortList -or $Port.endswith('43')) {
                     $ProcessedUrls += "https://$Url"
                     continue
                 }
