@@ -233,7 +233,9 @@ add-type @"
             $_.Exception.Response
         }   
     }
-
+    
+    if (-not($Response)) { return }
+    
     # Indicates a 2xx or 3xx response
     if ($Response.GetType().name -eq "BasicHtmlWebResponseObject") {
 
