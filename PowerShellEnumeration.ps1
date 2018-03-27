@@ -707,7 +707,7 @@ Function Get-WebsiteInfo {
                     $ProcessedUrls += "http://$Url"
                     continue
                 }
-                elseif ($Port -in $HttpsPortList) {
+                elseif ($Port -in $HttpsPortList -or $Port.endswith('43')) {
                     $ProcessedUrls += "https://$Url"
                     continue
                 }
@@ -723,6 +723,9 @@ Function Get-WebsiteInfo {
                 $ProcessedUrls += "https://$Url"
                 continue
             }
+            else {
+				$ProcessedUrls += $Url
+			}
         }
         return $ProcessedUrls
     }
@@ -813,7 +816,9 @@ add-type @"
             $_.Exception.Response
         }   
     }
-
+    
+    if (-not($Response)) { return }
+    
     # Indicates a 2xx or 3xx response
     if ($Response.GetType().name -eq "BasicHtmlWebResponseObject") {
 
