@@ -361,5 +361,5 @@ add-type @"
     Write-Host ""
 
     # remove the key set earlier
-    reg delete "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\Zones\3" /v 1A10 /f
+    $msg = reg delete "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\Zones\3" /v 1A10 /f
 }
