@@ -1,11 +1,9 @@
-﻿Function Get-RecentItems {
+Function Get-RecentItems {
 <#
 .SYNOPSIS
     Retrieves a listing of Recent Items from a specified user or all users.
     Author: Jake Miller (@LaconicWolf)
     License: BSD 3-Clause
-    Required Dependencies: None
-    Optional Dependencies: None
 .DESCRIPTION
     Get-RecentItems outputs the filepaths contained in a user's recent items 
     folder. It first checks the filepath of the '.lnk' files within the recent 
@@ -35,7 +33,8 @@
 #>
     [cmdletbinding()]
     Param(
-        $Username='All'
+        [Parameter(Mandatory = $False)]
+        [string]$Username='All'
     )
 
     if ($Username -ne 'All') {
@@ -84,4 +83,4 @@
     }
     $RecentFileData
 }
-Get-RecentItems
+Get-RecentItems | select FullName, LastAccessTime, LastWriteTime, Length
