@@ -64,7 +64,7 @@ Function Find-InterestingFiles {
                        "*.mdf", "*.pkcs12", "*.agilekeychain", "*.dayone", "*.sdf", "*.irb_history", "*.gitconfig", 
                        "*._ecdsa.pub", "Favorites.plist", "*.dbeaver-data-sources.xml", "*.psql_history", 
                        "config/hub", "*.s3cfg", "carrierwave.rb", "passwd", "*.psafe3", "*.keychain", "omniauth.rb", 
-                       "robomongo.json", "config.py"
+                       "robomongo.json", "config.*"
     }
     Get-ChildItem -Path $StartDirectory -Force -Recurse -File -Include $SearchWords -ErrorAction SilentlyContinue 
 }
