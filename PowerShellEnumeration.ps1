@@ -8,8 +8,10 @@ Function Find-InterestingFiles {
     License: BSD 3-Clause
     Credit: ice3man (https://ice3man.me/) for the search signatures
 .DESCRIPTION
-    Find-InterestingFiles calls GCI recursively, and attempts to match on specific
-    file globs. For any matches, the full filepath is returned. 
+    Find-InterestingFiles calls Get-ChildItem recursively, using the -Include
+    parameter to filter on an array of words designed to match interesting files
+    containing credentials or sensitive information. The call to GCI uses the -Force
+    option, so it does look for hidden files.
 .PARAMETER StartDirectory
     Specifies the location where the recursive searching will start. Defaults to 
     the current directory.
