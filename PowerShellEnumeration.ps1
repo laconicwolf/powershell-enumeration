@@ -2,7 +2,7 @@ Function Find-InterestingFiles {
 <#
 .SYNOPSIS
     Recursively searches the file system for files that contain part of a
-    specific string (defined in the cmdlet or with a list supplied to the 
+    specific string (defined in the function or with a list supplied to the 
     -WordList parameter).
     Author: Jake Miller (@LaconicWolf)
     License: BSD 3-Clause
@@ -23,7 +23,7 @@ Function Find-InterestingFiles {
     Description
     -----------
     Will recursively search the filesystem starting at C:\Users\Jake\, displaying files containing 
-    the strings specified in the cmdlet.
+    the strings specified in the function.
 .EXAMPLE
     Find-InterestingFiles -Wordlist filter.txt | 
     select FullName, LastAccessTime, LastWriteTime, Length
