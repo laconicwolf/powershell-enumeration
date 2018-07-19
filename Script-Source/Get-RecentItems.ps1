@@ -31,12 +31,12 @@ Function Get-RecentItems {
 .LINK
     https://laconicwolf.com/
 #>
+
     [cmdletbinding()]
     Param(
         [Parameter(Mandatory = $False)]
         [string]$Username='All'
     )
-
     if ($Username -ne 'All') {
         $RecentPath = @("$env:SystemDrive\Users\$UserName\AppData\Roaming\Microsoft\Windows\Recent\")
         if (-not(Test-Path $RecentPath)) {
@@ -49,8 +49,7 @@ Function Get-RecentItems {
     foreach($User in $Username) {
         $RecentPath = "$env:SystemDrive\Users\$User\AppData\Roaming\Microsoft\Windows\Recent\"
         if (-not(Test-Path $RecentPath -ErrorAction SilentlyContinue)) { continue }
-        $RecentFileLinks = Get-childItem $RecentPath
-        
+        $RecentFileLinks = Get-childItem $RecentPath        
         $ShortcutLinks = @()
         foreach($LinkFile in $RecentFileLinks){
             $Linkpath = $RecentPath + $LinkFile
@@ -71,7 +70,6 @@ Function Get-RecentItems {
         if (-not($RecentFilePath)) { continue }
         if (-not(Test-Path $RecentFilePath)) { continue }
         if ((Get-Item $RecentFilePath) -is [System.IO.DirectoryInfo]) { continue }
-
         $RecentFilePaths += $RecentFilePath
     }
 
