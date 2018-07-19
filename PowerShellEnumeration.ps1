@@ -1,4 +1,4 @@
-Function Find-InterestingFileNames {
+Function Find-InterestingFiles {
 <#
 .SYNOPSIS
     Recursively searches the file system for files that contain part of a
@@ -6,8 +6,9 @@ Function Find-InterestingFileNames {
     -WordList parameter).
     Author: Jake Miller (@LaconicWolf)
     License: BSD 3-Clause
+    Credit: ice3man (https://ice3man.me/) for the search signatures
 .DESCRIPTION
-    Find-InterestingFilenames calls GCI recursively, and attempts to match on specific
+    Find-InterestingFiles calls GCI recursively, and attempts to match on specific
     file globs. For any matches, the full filepath is returned. 
 .PARAMETER StartDirectory
     Specifies the location where the recursive searching will start. Defaults to 
@@ -15,14 +16,14 @@ Function Find-InterestingFileNames {
 .PARAMETER WordList
     Provide a filepath for a file that specifies the strings (seperated by new lines) to search.
 .EXAMPLE
-    Find-InterestingFilenames -StartDirectory C:\Users\Jake\ | 
+    Find-InterestingFiles -StartDirectory C:\Users\Jake\ | 
     select FullName, LastAccessTime, LastWriteTime, Length
     Description
     -----------
     Will recursively search the filesystem starting at C:\Users\Jake\, displaying files containing 
     the strings specified in the cmdlet.
 .EXAMPLE
-    Find-InterestingFilenames -Wordlist filter.txt | 
+    Find-InterestingFiles -Wordlist filter.txt | 
     select FullName, LastAccessTime, LastWriteTime, Length
     Description
     -----------
@@ -46,9 +47,22 @@ Function Find-InterestingFileNames {
         $SearchWords = Get-Content $WordList
     }
     else {
-        $SearchWords = "*pass*","*cred*", "user*", "*.conf", "*ssh",
-                       "*.ssh", "*key", "*git", "*.xml", "*.properties", 
-                       "*.ear", "*.war"
+        # Adapted from https://github.com/Ice3man543/hawkeye/blob/master/core/signatures.go
+        $SearchWords = "settings.py", "user.txt", "*.kwallet", "terraform.tfvars", "recentservers.xml",
+                       "*.functions", "*.log", "*.env", "configuration.user.xpl", "..pem", "*._rsa.pub", 
+                       "*credentials", "*.tpm", "*.exports", "*.bek", "knife.rb", "*.sqlite", "credential", 
+                       "secret_token.rb", "*.asc", "*.trc", "*._ed25519.pub", "credentials.xml", "journal.txt", 
+                       "*._dsa", "jenkins.plugins.publish_over_ssh.BapSshPublisherPlugin.xml", "*.extra", 
+                       "*.gnucash", "*._dsa.pub", "*.ovpn", "proftpdpasswd", "*.htpasswd", "*.rdp", "*.p12", 
+                       "*.pgpass", "*._rsa", "*.jks", "*._ecdsa", "*.pfx", "sftp-config.json", "otr.private_key", 
+                       "*.pcap", "ventrilo_srv.ini", "*.cscfg", "keys.db", "*.muttrc", "sqldump", "*.pem", 
+                       "*.dockercfg", "*.tugboat", "*.npmrc", "filezilla.xml", "LocalSettings.php", "database.yml", 
+                       "*password*", "config.inc.php", "*.mysql_history", "root.txt", "kdbx", "*config", "*.fve", 
+                       "shadow", "servlist_.conf", "config.yaml", "keypair", "accounts.xml", "*.tblk", "*._ed25519", 
+                       "*.mdf", "*.pkcs12", "*.agilekeychain", "*.dayone", "*.sdf", "*.irb_history", "*.gitconfig", 
+                       "*._ecdsa.pub", "Favorites.plist", "*.dbeaver-data-sources.xml", "*.psql_history", 
+                       "config/hub", "*.s3cfg", "carrierwave.rb", "passwd", "*.psafe3", "*.keychain", "omniauth.rb", 
+                       "robomongo.json"
     }
     Get-ChildItem -Path $StartDirectory -Force -Recurse -File -Include $SearchWords -ErrorAction SilentlyContinue 
 }
