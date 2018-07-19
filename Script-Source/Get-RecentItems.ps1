@@ -83,4 +83,3 @@ Function Get-RecentItems {
     }
     $RecentFileData
 }
-Get-RecentItems | select FullName, LastAccessTime, LastWriteTime, Length
