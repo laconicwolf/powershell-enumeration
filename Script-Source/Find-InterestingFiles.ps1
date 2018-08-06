@@ -1,4 +1,4 @@
-Function Find-InterestingFiles {
+﻿Function Find-InterestingFiles {
 <#
 .SYNOPSIS
     Recursively searches the file system for files that contain part of a
@@ -68,3 +68,4 @@ Function Find-InterestingFiles {
     }
     Get-ChildItem -Path $StartDirectory -Force -Recurse -File -Include $SearchWords -ErrorAction SilentlyContinue 
 }
+#Find-InterestingFiles -StartDirectory C:\Users\Jake\ | select -ExpandProperty FullName |  Ft -autosize | out-string -width 4096 
