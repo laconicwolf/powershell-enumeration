@@ -581,6 +581,62 @@ add-type @"
     }
 }
 
+Function Parse-NetUse {
+<#
+    .SYNOPSIS
+        Parses the net use command output into a single list of drive letters.
+        Author: @Vensaherald
+
+    .DESCRIPTION
+        Accepts the output of net use via the pipeline and parses into a 
+        single list.
+
+    .EXAMPLE        
+        PS C:\> net use | Parse-NetUse
+        
+        Drives                       
+        ------
+        T:
+        X:
+                
+        
+        
+    #>
+
+    foreach ($item in $input) {
+        if ($item -eq ""){ # blank line
+            continue
+        }
+        if ($item -match 'New connections will') { # openning line
+            continue
+        }
+        elseif ($item -match '----') { # formatting
+            continue
+        }
+        elseif ($item -match 'The command completed') { # tail line
+            continue
+        }
+        elseif($item -match 'Status') {# headers
+            continue
+        }
+
+        $contentArray = @()
+        foreach ($line in $item) {
+            while ($line.Contains("  ")){
+                $line = $line -replace '  ',' '
+            } # trim whitespace
+            
+            $contentArray += $line.Split(' ') # split into array
+        }
+ 
+        foreach($content in $contentArray) {
+            $content = $content -replace '"',''
+            if ($content.Length -ne 0 -and $content -match ":") {
+                New-Object -TypeName PSObject -Property @{"Drives" = $content.Trim()}
+            }
+        }
+    }
+}
 
 Function Parse-NetUser {
     <#
@@ -1105,3 +1161,7 @@ add-type @"
     # remove the key set earlier
     reg delete "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\Zones\3" /v 1A10 /f
 }
+
+
+
+
